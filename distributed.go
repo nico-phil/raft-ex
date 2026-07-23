@@ -15,14 +15,17 @@ type DistributedFSM struct {
 	raft *raft.Raft
 }
 
-func NewDistributedFSM() (*DistributedFSM, error) {
+type Config struct {
+	NodeID    string
+	Bootstrap bool
+	JoinAddr  string
+}
+
+func NewDistributedFSM(config Config) (*DistributedFSM, error) {
 	dFMS := DistributedFSM{
 		fsm: NewFSM(),
 	}
-	config := Config{
-		nodeID:    "0",
-		bootstrap: true,
-	}
+
 	var err error
 	err = dFMS.setupRaft(config)
 	if err != nil {
@@ -32,14 +35,9 @@ func NewDistributedFSM() (*DistributedFSM, error) {
 	return &dFMS, nil
 }
 
-type Config struct {
-	nodeID    string
-	bootstrap bool
-}
-
-func (d *DistributedFSM) setupRaft(c Config) error {
-	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(c.nodeID)
+func (d *DistributedFSM) setupRaft(config Config) error {
+	raftconfig := raft.DefaultConfig()
+	raftconfig.LocalID = raft.ServerID(config.NodeID)
 
 	logStore, err := raftboltdb.NewBoltStore(filepath.Join("raft", "raft-log.bolt"))
 	if err != nil {
@@ -66,16 +64,16 @@ func (d *DistributedFSM) setupRaft(c Config) error {
 
 	transport, err := raft.NewTCPTransport(tcpAddr.String(), tcpAddr, 10, time.Second*10, os.Stderr)
 
-	d.raft, err = raft.NewRaft(config, d.fsm, logStore, stableStore, snapshotStore, transport)
+	d.raft, err = raft.NewRaft(raftconfig, d.fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		return err
 	}
 
-	if c.bootstrap {
+	if config.Bootstrap {
 
 		d.raft.BootstrapCluster(raft.Configuration{
 			Servers: []raft.Server{
-				{ID: raft.ServerID(c.nodeID), Address: transport.LocalAddr()},
+				{ID: raft.ServerID(config.NodeID), Address: transport.LocalAddr()},
 			},
 		})
 	}
@@ -90,4 +88,17 @@ func (d *DistributedFSM) Add(value int) {
 
 func (d *DistributedFSM) Get() int {
 	return d.fsm.Get()
+}
+
+func (d *DistributedFSM) Join(id, addr string) error {
+
+	serverID := raft.ServerID(id)
+	serverAddr := raft.ServerAddress(addr)
+
+	indexFuture := d.raft.AddVoter(serverID, serverAddr, 0, 0)
+	if err := indexFuture.Error(); err != nil {
+		return err
+	}
+
+	return nil
 }

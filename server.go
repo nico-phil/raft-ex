@@ -2,18 +2,21 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 )
 
 type Server struct {
-	fsm *FSM
+	fsm  *DistributedFSM //*FSM
+	port int
 }
 
-func NewServer() *Server {
+func NewServer(port int, d *DistributedFSM) *Server {
 	return &Server{
-		fsm: NewFSM(),
+		fsm:  d,
+		port: port,
 	}
 }
 
@@ -21,8 +24,8 @@ func (s *Server) Start() error {
 	http.HandleFunc("POST /add", s.handleAdd)
 	http.HandleFunc("GET /get", s.handleGet)
 
-	log.Println("Server is starting on port 8080...")
-	return http.ListenAndServe(":8080", nil)
+	log.Printf("Server is starting on port %d...", s.port)
+	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), nil)
 }
 
 func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {

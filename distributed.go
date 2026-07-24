@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,6 +22,8 @@ type Config struct {
 	NodeID    string
 	Bootstrap bool
 	JoinAddr  string
+	RaftAddr  string
+	DataDir   string
 }
 
 func NewDistributedFSM(config Config) (*DistributedFSM, error) {
@@ -39,25 +44,25 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 	raftconfig := raft.DefaultConfig()
 	raftconfig.LocalID = raft.ServerID(config.NodeID)
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join("raft", "raft-log.bolt"))
+	logStore, err := raftboltdb.NewBoltStore(filepath.Join(config.DataDir, "raft-log.bolt"))
 	if err != nil {
 		return err
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(filepath.Join("raft", "raft-stable.bolt"))
+	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(config.DataDir, "raft-stable.bolt"))
 	if err != nil {
 		return err
 	}
 
 	retain := 1
 	snapshotStore, err := raft.NewFileSnapshotStore(
-		filepath.Join("raft", "raft-snapshot-store"),
+		filepath.Join(config.DataDir, "raft-snapshot-store"),
 		retain,
 		os.Stderr,
 	)
 
-	raftAddr := "localhost:8400"
-	tcpAddr, err := net.ResolveTCPAddr("tcp", raftAddr)
+	// raftAddr := "localhost:8400"
+	tcpAddr, err := net.ResolveTCPAddr("tcp", config.RaftAddr)
 	if err != nil {
 		return err
 	}
@@ -83,21 +88,50 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 }
 
 func (d *DistributedFSM) Add(value int) {
-	d.fsm.Add(value)
+	b, _ := json.Marshal(value)
+	d.fsm.Apply(&raft.Log{
+		Type: raft.LogType(value),
+		Data: b,
+	})
 }
 
 func (d *DistributedFSM) Get() int {
 	return d.fsm.Get()
 }
 
-func (d *DistributedFSM) Join(id, addr string) error {
+func (d *DistributedFSM) Join(request JoinRequest) error {
 
-	serverID := raft.ServerID(id)
-	serverAddr := raft.ServerAddress(addr)
+	nodeID := raft.ServerID(request.NodeID)
+	nodeAddr := raft.ServerAddress(request.RaftAddr)
 
-	indexFuture := d.raft.AddVoter(serverID, serverAddr, 0, 0)
+	configure := d.raft.GetConfiguration()
+	if err := configure.Error(); err != nil {
+		return fmt.Errorf("cannot get raft configuration: %w", err)
+	}
+
+	for _, server := range configure.Configuration().Servers {
+		sameID := server.ID == nodeID
+		sameAddress := server.Address == nodeAddr
+		if sameID && sameAddress {
+			log.Printf("node already belong to cluster: nodeID=%s, address=%s ", server.ID, server.Address)
+			return nil
+		}
+
+		// if sameID || sameAddress {
+		// 	log.Printf(
+		// 		"removing stale Raft server: id=%s address=%s", server.ID, server.Address,
+		// 	)
+		// }
+
+		// removeFuture := d.raft.RemoveServer(server.ID, 0, 10*time.Second)
+		// if err := removeFuture.Error(); err != nil {
+		// 	return fmt.Errorf("failed to remove server: %w", err)
+		// }
+	}
+
+	indexFuture := d.raft.AddVoter(nodeID, nodeAddr, 0, 10*time.Second)
 	if err := indexFuture.Error(); err != nil {
-		return err
+		return fmt.Errorf("add voter: %w", err)
 	}
 
 	return nil

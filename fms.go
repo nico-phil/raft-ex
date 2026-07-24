@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"sync"
 
@@ -29,30 +30,49 @@ func (f *FSM) Get() int {
 	return f.stateValue
 }
 
-type AddPayload struct {
+type event struct {
+	Type  string
 	Value int
 }
 
 func (f *FSM) Apply(l *raft.Log) interface{} {
-	var p AddPayload
-	err := json.Unmarshal(l.Data, &p)
+	var e event
+	err := json.Unmarshal(l.Data, &e)
 	if err != nil {
 		return err
 	}
-	f.Add(p.Value)
+
+	switch e.Type {
+	case "Add":
+		f.Add(e.Value)
+	default:
+		fmt.Println("Unknow event:", e.Type)
+	}
+
 	return nil
 }
 
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
-	s := &fsmSnapshot{}
+	f.m.Lock()
+	defer f.m.Unlock()
+	s := &fsmSnapshot{StateValue: f.stateValue}
 	return s, nil
 }
 
 func (f *FSM) Restore(snapshot io.ReadCloser) error {
+	var sn fsmSnapshot
+	err := json.NewDecoder(snapshot).Decode(&sn)
+	if err != nil {
+		return err
+	}
+
+	f.stateValue = sn.StateValue
 	return nil
 }
 
-type fsmSnapshot struct{}
+type fsmSnapshot struct {
+	StateValue int
+}
 
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil

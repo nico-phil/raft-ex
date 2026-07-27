@@ -61,7 +61,6 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 		os.Stderr,
 	)
 
-	// raftAddr := "localhost:8400"
 	tcpAddr, err := net.ResolveTCPAddr("tcp", config.RaftAddr)
 	if err != nil {
 		return err
@@ -117,16 +116,16 @@ func (d *DistributedFSM) Join(request JoinRequest) error {
 			return nil
 		}
 
-		// if sameID || sameAddress {
-		// 	log.Printf(
-		// 		"removing stale Raft server: id=%s address=%s", server.ID, server.Address,
-		// 	)
-		// }
+		if sameID || sameAddress {
+			log.Printf(
+				"removing stale Raft server: id=%s address=%s", server.ID, server.Address,
+			)
+		}
 
-		// removeFuture := d.raft.RemoveServer(server.ID, 0, 10*time.Second)
-		// if err := removeFuture.Error(); err != nil {
-		// 	return fmt.Errorf("failed to remove server: %w", err)
-		// }
+		removeFuture := d.raft.RemoveServer(server.ID, 0, 10*time.Second)
+		if err := removeFuture.Error(); err != nil {
+			return fmt.Errorf("failed to remove server: %w", err)
+		}
 	}
 
 	indexFuture := d.raft.AddVoter(nodeID, nodeAddr, 0, 10*time.Second)

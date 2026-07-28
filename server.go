@@ -49,6 +49,7 @@ func (s *Server) Start() error {
 	http.HandleFunc("POST /add", s.handleAdd)
 	http.HandleFunc("GET /get", s.handleGet)
 	http.HandleFunc("POST /join", s.handleJoin)
+	http.HandleFunc("GET /getservers", s.handleGetServers)
 
 	log.Printf("Server is starting on port %s...", s.httpAddr)
 
@@ -95,6 +96,9 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid JSON request", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf(
+		"received join request: node_id=%q raft_addr=%q \n", request.NodeID, request.RaftAddr)
 
 	if request.NodeID == "" || request.RaftAddr == "" {
 		http.Error(
@@ -160,4 +164,15 @@ func (s *Server) JoinCluster() error {
 	}
 	return nil
 
+}
+
+func (s *Server) handleGetServers(w http.ResponseWriter, r *http.Request) {
+	servers := s.fsm.raft.GetConfiguration().Configuration().Servers
+	fmt.Println("servers:")
+	for _, server := range servers {
+		fmt.Println("is_leader:", s.fsm.raft.Leader() == server.Address)
+		fmt.Printf("\t- %v\n", server)
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

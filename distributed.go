@@ -86,12 +86,22 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 
 }
 
-func (d *DistributedFSM) Add(value int) {
-	b, _ := json.Marshal(value)
-	d.fsm.Apply(&raft.Log{
-		Type: raft.LogType(value),
-		Data: b,
-	})
+func (d *DistributedFSM) Add(value int) error {
+	data := event{
+		Type:  "Add",
+		Value: value,
+	}
+	b, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	applyFuture := d.raft.Apply(b, 10*time.Second)
+
+	if err := applyFuture.Error(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *DistributedFSM) Get() int {
@@ -103,29 +113,31 @@ func (d *DistributedFSM) Join(request JoinRequest) error {
 	nodeID := raft.ServerID(request.NodeID)
 	nodeAddr := raft.ServerAddress(request.RaftAddr)
 
-	configure := d.raft.GetConfiguration()
-	if err := configure.Error(); err != nil {
+	configureFuture := d.raft.GetConfiguration()
+	if err := configureFuture.Error(); err != nil {
 		return fmt.Errorf("cannot get raft configuration: %w", err)
 	}
 
-	for _, server := range configure.Configuration().Servers {
+	for _, server := range configureFuture.Configuration().Servers {
 		sameID := server.ID == nodeID
 		sameAddress := server.Address == nodeAddr
+
 		if sameID && sameAddress {
 			log.Printf("node already belong to cluster: nodeID=%s, address=%s ", server.ID, server.Address)
 			return nil
 		}
 
-		if sameID || sameAddress {
+		if (sameID && !sameAddress) || sameAddress && !sameID {
 			log.Printf(
 				"removing stale Raft server: id=%s address=%s", server.ID, server.Address,
 			)
+
+			removeFuture := d.raft.RemoveServer(server.ID, 0, 10*time.Second)
+			if err := removeFuture.Error(); err != nil {
+				return fmt.Errorf("failed to remove server: %w", err)
+			}
 		}
 
-		removeFuture := d.raft.RemoveServer(server.ID, 0, 10*time.Second)
-		if err := removeFuture.Error(); err != nil {
-			return fmt.Errorf("failed to remove server: %w", err)
-		}
 	}
 
 	indexFuture := d.raft.AddVoter(nodeID, nodeAddr, 0, 10*time.Second)

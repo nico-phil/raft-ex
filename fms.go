@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/hashicorp/raft"
@@ -45,8 +46,14 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	switch e.Type {
 	case "Add":
 		f.Add(e.Value)
+		log.Printf(
+			"FSM applied: node log_index=%d term=%d value=%d",
+			l.Index,
+			l.Term,
+			e.Value,
+		)
 	default:
-		fmt.Println("Unknow event:", e.Type)
+		return fmt.Errorf("unknown event type: %q", e.Type)
 	}
 
 	return nil

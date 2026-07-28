@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 )
@@ -16,8 +15,6 @@ func main() {
 	joinAddr := flag.String("join-addr", "", "address to join the cluster")
 	dataDir := flag.String("data-dir", "", "data dir to store raft logs")
 	flag.Parse()
-
-	fmt.Println("JOIN_ADRESS:", *joinAddr)
 
 	err := os.MkdirAll(*dataDir, 0o755)
 	if err != nil {
@@ -38,7 +35,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("BEFORE")
+
 	server := NewServer(
 		distributedFSM,
 		*nodeID,
@@ -46,8 +43,6 @@ func main() {
 		*httpAddr,
 		*joinAddr,
 	)
-
-	fmt.Println("AFTER")
 
 	go func() {
 		err = server.Start()

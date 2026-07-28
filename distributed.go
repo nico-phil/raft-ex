@@ -13,6 +13,7 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
+// DistributedFSM represents the distriubted fms
 type DistributedFSM struct {
 	fsm  *FSM
 	raft *raft.Raft
@@ -26,6 +27,7 @@ type Config struct {
 	DataDir   string
 }
 
+// NewDistributedFSM returns a DistributedFSM
 func NewDistributedFSM(config Config) (*DistributedFSM, error) {
 	dFMS := DistributedFSM{
 		fsm: NewFSM(),
@@ -40,6 +42,7 @@ func NewDistributedFSM(config Config) (*DistributedFSM, error) {
 	return &dFMS, nil
 }
 
+// setupRaft configures and creates a raft instance
 func (d *DistributedFSM) setupRaft(config Config) error {
 	raftconfig := raft.DefaultConfig()
 	raftconfig.LocalID = raft.ServerID(config.NodeID)
@@ -86,7 +89,8 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 
 }
 
-func (d *DistributedFSM) Add(value int) error {
+// Set sets the state of fsm
+func (d *DistributedFSM) Set(value int) error {
 	data := event{
 		Type:  "Add",
 		Value: value,
@@ -104,10 +108,12 @@ func (d *DistributedFSM) Add(value int) error {
 	return nil
 }
 
+// Get returns the state value
 func (d *DistributedFSM) Get() int {
 	return d.fsm.Get()
 }
 
+// Join adds new node to the cluster. Only the leader can add new node
 func (d *DistributedFSM) Join(request JoinRequest) error {
 
 	nodeID := raft.ServerID(request.NodeID)

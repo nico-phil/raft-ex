@@ -36,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	server := NewServer(
+	server := NewNode(
 		distributedFSM,
 		*nodeID,
 		*raftAddr,

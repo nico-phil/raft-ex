@@ -12,31 +12,25 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-type Server struct {
+// Node represent a node in the cluster
+type Node struct {
 	id       string
 	raftAddr string
 	httpAddr string
 	joinAddr string
-	fsm      *DistributedFSM //*FSM
-
+	fsm      *DistributedFSM
 }
 
-// type Node struct {
-// 	id       raft.ServerID
-// 	raftAddr raft.ServerAddress
-// 	httpAddr string
-
-// }
-
-func NewServer(
+// NewNode creates and returns new node
+func NewNode(
 	d *DistributedFSM,
 	id string,
 	raftAddr string,
 	httpAddr string,
 	joinAdrr string,
 
-) *Server {
-	return &Server{
+) *Node {
+	return &Node{
 		fsm:      d,
 		id:       id,
 		raftAddr: raftAddr,
@@ -45,8 +39,9 @@ func NewServer(
 	}
 }
 
-func (s *Server) Start() error {
-	http.HandleFunc("POST /add", s.handleAdd)
+// Start run the node server
+func (s *Node) Start() error {
+	http.HandleFunc("POST /add", s.handleSet)
 	http.HandleFunc("GET /get", s.handleGet)
 	http.HandleFunc("POST /join", s.handleJoin)
 	http.HandleFunc("GET /getservers", s.handleGetServers)
@@ -56,7 +51,8 @@ func (s *Server) Start() error {
 	return http.ListenAndServe(s.httpAddr, nil)
 }
 
-func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
+// handleSet handles set request, set the state
+func (s *Node) handleSet(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Value int `json:"value"`
 	}
@@ -68,13 +64,14 @@ func (s *Server) handleAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle the add request here
-	s.fsm.Add(req.Value)
+	s.fsm.Set(req.Value)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Add request received"))
 }
 
-func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
+// handleGet return the state
+func (s *Node) handleGet(w http.ResponseWriter, r *http.Request) {
 	// Handle the get request here
 	value := s.fsm.Get()
 
@@ -82,13 +79,15 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Current state value:" + strconv.Itoa(value) + "\n"))
 }
 
+// JoinRequest reprepsents a join request type
 type JoinRequest struct {
 	NodeID   string `json:"node_id"`
 	RaftAddr string `json:"raft_addr"`
 	HTTPAddr string `json:"http_addr"`
 }
 
-func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
+// handleJoin handles join request, allow node to join the cluster
+func (s *Node) handleJoin(w http.ResponseWriter, r *http.Request) {
 	var request JoinRequest
 
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -124,7 +123,8 @@ func (s *Server) handleJoin(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (s *Server) JoinCluster() error {
+// JoinCluster: http request to join the cluster
+func (s *Node) JoinCluster() error {
 
 	client := http.Client{}
 	joinReq := JoinRequest{
@@ -166,7 +166,8 @@ func (s *Server) JoinCluster() error {
 
 }
 
-func (s *Server) handleGetServers(w http.ResponseWriter, r *http.Request) {
+// handleGetServers return all the nodes in the cluster
+func (s *Node) handleGetServers(w http.ResponseWriter, r *http.Request) {
 	servers := s.fsm.raft.GetConfiguration().Configuration().Servers
 	fmt.Println("servers:")
 	for _, server := range servers {

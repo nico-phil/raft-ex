@@ -14,28 +14,24 @@ import (
 
 // Node represent a node in the cluster
 type Node struct {
-	id       string
-	raftAddr string
-	httpAddr string
-	joinAddr string
-	fsm      *DistributedFSM
+	config NodeConfig
+	fsm    *DistributedFSM
+}
+
+type NodeConfig struct {
+	id        string
+	raftAddr  string
+	httpAddr  string
+	joinAddr  string
+	dataDir   string
+	bootstrap bool
 }
 
 // NewNode creates and returns new node
-func NewNode(
-	d *DistributedFSM,
-	id string,
-	raftAddr string,
-	httpAddr string,
-	joinAdrr string,
-
-) *Node {
+func NewNode(config NodeConfig, d *DistributedFSM) *Node {
 	return &Node{
-		fsm:      d,
-		id:       id,
-		raftAddr: raftAddr,
-		httpAddr: httpAddr,
-		joinAddr: joinAdrr,
+		fsm:    d,
+		config: config,
 	}
 }
 
@@ -46,9 +42,9 @@ func (s *Node) Start() error {
 	http.HandleFunc("POST /join", s.handleJoin)
 	http.HandleFunc("GET /getservers", s.handleGetServers)
 
-	log.Printf("Server is starting on port %s...", s.httpAddr)
+	log.Printf("Server is starting on port %s...", s.config.httpAddr)
 
-	return http.ListenAndServe(s.httpAddr, nil)
+	return http.ListenAndServe(s.config.httpAddr, nil)
 }
 
 // handleSet handles set request, set the state
@@ -63,20 +59,26 @@ func (s *Node) handleSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle the add request here
-	s.fsm.Set(req.Value)
+	e := event{
+		Type:  "Set",
+		Value: req.Value,
+	}
+
+	if err := s.fsm.Set(e); err != nil {
+		http.Error(w, "failed to set the state", http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Add request received"))
+	w.Write([]byte("Add request received" + "\n"))
 }
 
 // handleGet return the state
 func (s *Node) handleGet(w http.ResponseWriter, r *http.Request) {
-	// Handle the get request here
 	value := s.fsm.Get()
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Current state value:" + strconv.Itoa(value) + "\n"))
+	w.Write([]byte("state_value:" + strconv.Itoa(value) + "\n"))
 }
 
 // JoinRequest reprepsents a join request type
@@ -128,9 +130,9 @@ func (s *Node) JoinCluster() error {
 
 	client := http.Client{}
 	joinReq := JoinRequest{
-		NodeID:   s.id,
-		RaftAddr: s.raftAddr,
-		HTTPAddr: s.httpAddr,
+		NodeID:   s.config.id,
+		RaftAddr: s.config.raftAddr,
+		HTTPAddr: s.config.httpAddr,
 	}
 
 	body, err := json.Marshal(joinReq)
@@ -138,7 +140,7 @@ func (s *Node) JoinCluster() error {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := "http://" + s.joinAddr + "/join"
+	url := "http://" + s.config.joinAddr + "/join"
 	req, err := http.NewRequest(
 		http.MethodPost,
 		url,
@@ -171,8 +173,7 @@ func (s *Node) handleGetServers(w http.ResponseWriter, r *http.Request) {
 	servers := s.fsm.raft.GetConfiguration().Configuration().Servers
 	fmt.Println("servers:")
 	for _, server := range servers {
-		fmt.Println("is_leader:", s.fsm.raft.Leader() == server.Address)
-		fmt.Printf("\t- %v\n", server)
+		fmt.Printf("\t- node_id:%s, raft_addr:%v, leader:%v \n", server.ID, server.Address, s.fsm.raft.Leader() == server.Address)
 	}
 
 	w.WriteHeader(http.StatusOK)

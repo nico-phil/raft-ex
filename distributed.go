@@ -15,26 +15,20 @@ import (
 
 // DistributedFSM represents the distriubted fms
 type DistributedFSM struct {
-	fsm  *FSM
-	raft *raft.Raft
-}
-
-type Config struct {
-	NodeID    string
-	Bootstrap bool
-	JoinAddr  string
-	RaftAddr  string
-	DataDir   string
+	fsm    *FSM
+	raft   *raft.Raft
+	config NodeConfig
 }
 
 // NewDistributedFSM returns a DistributedFSM
-func NewDistributedFSM(config Config) (*DistributedFSM, error) {
+func NewDistributedFSM(config NodeConfig) (*DistributedFSM, error) {
 	dFMS := DistributedFSM{
-		fsm: NewFSM(),
+		fsm:    NewFSM(),
+		config: config,
 	}
 
 	var err error
-	err = dFMS.setupRaft(config)
+	err = dFMS.setupRaft()
 	if err != nil {
 		return nil, err
 	}
@@ -43,28 +37,28 @@ func NewDistributedFSM(config Config) (*DistributedFSM, error) {
 }
 
 // setupRaft configures and creates a raft instance
-func (d *DistributedFSM) setupRaft(config Config) error {
+func (d *DistributedFSM) setupRaft() error {
 	raftconfig := raft.DefaultConfig()
-	raftconfig.LocalID = raft.ServerID(config.NodeID)
+	raftconfig.LocalID = raft.ServerID(d.config.id)
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(config.DataDir, "raft-log.bolt"))
+	logStore, err := raftboltdb.NewBoltStore(filepath.Join(d.config.dataDir, "raft-log.bolt"))
 	if err != nil {
 		return err
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(config.DataDir, "raft-stable.bolt"))
+	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(d.config.dataDir, "raft-stable.bolt"))
 	if err != nil {
 		return err
 	}
 
 	retain := 1
 	snapshotStore, err := raft.NewFileSnapshotStore(
-		filepath.Join(config.DataDir, "raft-snapshot-store"),
+		filepath.Join(d.config.dataDir, "raft-snapshot-store"),
 		retain,
 		os.Stderr,
 	)
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp", config.RaftAddr)
+	tcpAddr, err := net.ResolveTCPAddr("tcp", d.config.raftAddr)
 	if err != nil {
 		return err
 	}
@@ -76,11 +70,11 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 		return err
 	}
 
-	if config.Bootstrap {
+	if d.config.bootstrap {
 
 		d.raft.BootstrapCluster(raft.Configuration{
 			Servers: []raft.Server{
-				{ID: raft.ServerID(config.NodeID), Address: transport.LocalAddr()},
+				{ID: raft.ServerID(d.config.id), Address: transport.LocalAddr()},
 			},
 		})
 	}
@@ -90,12 +84,8 @@ func (d *DistributedFSM) setupRaft(config Config) error {
 }
 
 // Set sets the state of fsm
-func (d *DistributedFSM) Set(value int) error {
-	data := event{
-		Type:  "Add",
-		Value: value,
-	}
-	b, err := json.Marshal(data)
+func (d *DistributedFSM) Set(event event) error {
+	b, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}

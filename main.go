@@ -21,28 +21,23 @@ func main() {
 		if !errors.Is(err, os.ErrExist) {
 			log.Fatalf("failed datad-dir: %v", err)
 		}
-
-	}
-	config := Config{
-		NodeID:    *nodeID,
-		Bootstrap: *bootstrap,
-		JoinAddr:  *joinAddr,
-		RaftAddr:  *raftAddr,
-		DataDir:   *dataDir,
 	}
 
-	distributedFSM, err := NewDistributedFSM(config)
+	nodeConfig := NodeConfig{
+		id:        *nodeID,
+		raftAddr:  *raftAddr,
+		httpAddr:  *httpAddr,
+		joinAddr:  *joinAddr,
+		dataDir:   *dataDir,
+		bootstrap: *bootstrap,
+	}
+
+	distributedFSM, err := NewDistributedFSM(nodeConfig)
 	if err != nil {
 		panic(err)
 	}
 
-	server := NewNode(
-		distributedFSM,
-		*nodeID,
-		*raftAddr,
-		*httpAddr,
-		*joinAddr,
-	)
+	server := NewNode(nodeConfig, distributedFSM)
 
 	go func() {
 		err = server.Start()
@@ -51,7 +46,7 @@ func main() {
 		}
 	}()
 
-	if *joinAddr != "" {
+	if nodeConfig.joinAddr != "" {
 		if err := server.JoinCluster(); err != nil {
 			log.Fatalf("main:failed to join cluster: %v", err)
 		}

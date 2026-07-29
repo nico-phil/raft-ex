@@ -11,8 +11,8 @@ import (
 )
 
 // FSM represents the finite-date machine(the database)
-// in this example, i use just an integer to represent the db for better mental model.
-// the finite state machine can anything that holds state: file system, postgres, in memory data...
+// in this example, i use just an integer to represent the db to construct a simple mental model.
+// the finite state machine can be anything that holds state: file system, postgres, in memory data...
 type FSM struct {
 	m          sync.Mutex
 	stateValue int
@@ -52,7 +52,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	}
 
 	switch e.Type {
-	case "Add":
+	case "Set":
 		f.Add(e.Value)
 		log.Printf(
 			"FSM applied: node log_index=%d term=%d value=%d",

@@ -25,8 +25,8 @@ run-node-2:
 	--join-addr=127.0.0.1:8000 \
 	--data-dir=node-2 \
 
-.PHONY: curl-add
-curl-add:
+.PHONY: curl-set
+curl-set:
 	 curl -i -X POST -d '{"value": 10 }' http://127.0.0.1:8000/add  -H "Content-Type: application/json"
 
 .PHONY: curl-get

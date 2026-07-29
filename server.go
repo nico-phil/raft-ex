@@ -8,8 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-
-	"github.com/hashicorp/raft"
 )
 
 // Node represent a node in the cluster
@@ -107,11 +105,6 @@ func (s *Node) handleJoin(w http.ResponseWriter, r *http.Request) {
 			"node_id and raft_addr are required",
 			http.StatusBadRequest,
 		)
-		return
-	}
-
-	if s.fsm.raft.State() != raft.Leader {
-		http.Error(w, "Node is not the leader", http.StatusBadRequest)
 		return
 	}
 

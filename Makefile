@@ -27,17 +27,21 @@ run-node-2:
 
 .PHONY: curl-set
 curl-set:
-	 curl -i -X POST -d '{"value": 10 }' http://127.0.0.1:8000/add  -H "Content-Type: application/json"
+	curl \
+		-i -X POST \
+		-H "Content-Type: application/json" \
+		-d '{"value":10}' \
+		http://127.0.0.1:8000/set
 
 .PHONY: curl-get
 curl-get:
-	 curl -i -X GET http://127.0.0.1:8000/get  -H "Content-Type: application/json"
+	 curl -i -X GET http://127.0.0.1:8002/get 
 
 .PHONY: curl-join
 curl-join:
-	curl -i -X POST -d '{"node_id":" node-1", "raft_addr": "127.0.0.1:7000" }' http://localhost:8080/join  -H "Content-Type: application/json"
+	curl -i -X POST -d '{"node_id":" node-1", "raft_addr": "127.0.0.1:7000" }' http://localhost:8080/join 
 
 .PHONY: curl-getservers
 curl-getservers:
-	 curl -i -X GET http://127.0.0.1:8000/getservers  -H "Content-Type: application/json"
+	 curl -i -X GET http://127.0.0.1:8000/getservers
 

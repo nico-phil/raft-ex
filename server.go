@@ -35,7 +35,7 @@ func NewNode(config NodeConfig, d *DistributedFSM) *Node {
 
 // Start run the node server
 func (s *Node) Start() error {
-	http.HandleFunc("POST /add", s.handleSet)
+	http.HandleFunc("POST /set", s.handleSet)
 	http.HandleFunc("GET /get", s.handleGet)
 	http.HandleFunc("POST /join", s.handleJoin)
 	http.HandleFunc("GET /getservers", s.handleGetServers)

@@ -151,3 +151,11 @@ Although intentionally minimal, this project includes the essential pieces of a 
 - Strong consistency through majority consensus
 
 By replacing the simple in-memory integer with your own state machine, you can use the same architecture to build replicated key-value stores, metadata services, distributed schedulers, and many other fault-tolerant distributed systems.
+
+## References 
+-  Raft paper, [In Search of an Understandable Consensus Algorithm (Extended Version) by Diego Ongaro and John Ousterhout](https://raft.github.io/raft.pdf)
+- GopherCon2023 talk "Build Your Own Distributed System Using Go" ([video](https://www.youtube.com/watch?v=8XbxQ1Epi5w), [slides](https://storage.googleapis.com/bucket-vallified/BuildYourOwnDistributedSystemUsingGoGopherCon2023.pdf)).
+
+- hraftd, a reference example use of the Hashicorp Raft implementation [github](https://github.com/otoolep/hraftd).
+
+- Practical Distributed Consensus using HashiCorp/raft [video](https://www.youtube.com/watch?v=EGRmmxVFOfE&t=958s).
